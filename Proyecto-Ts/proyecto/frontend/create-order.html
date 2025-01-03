@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+
+    <title>Crear Orden</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .order-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 400px;
+        }
+
+        .order-container h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .order-container input,
+        .order-container select,
+        .order-container button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .order-container button {
+            background: #42a5f5;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .order-container button:hover {
+            background: #1e88e5;
+        }
+
+        .details {
+            margin: 10px 0;
+        }
+
+        .details input {
+            width: calc(100% - 22px);
+            margin: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="order-container">
+        <h1>Crear Orden</h1>
+        <form id="order-form">
+            <label for="payment-method">Método de Pago</label>
+            <select id="payment-method" required>
+                <option value="">Seleccione un método</option>
+            </select>
+
+            <div class="details">
+                <h3>Detalles de la Orden</h3>
+                <div id="details-list">
+                </div>
+                <button type="button" id="add-detail">Añadir Detalle</button>
+            </div>
+
+            <button type="submit">Crear Orden</button>
+            <p id="message" style="text-align: center; color: green; display: none;">Orden creada con éxito.</p>
+        </form>
+    </div>
+
+    <script>
+        const authToken = localStorage.getItem('authToken');
+
+        if (!authToken) {
+            alert('Debe iniciar sesión primero.');
+            window.location.href = 'index.html';
+        } else {
+            const socket = io('http://localhost:3000', {
+                auth: { token: authToken },
+            });
+
+            const detailsList = document.getElementById('details-list');
+            const addDetailButton = document.getElementById('add-detail');
+            const paymentMethodSelect = document.getElementById('payment-method');
+
+            async function loadPaymentMethods() {
+                try {
+                    const response = await fetch('http://localhost:3000/api/payment-methods', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': authToken,
+                            'Content-Type': 'application/json',
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    }
+
+                    const paymentMethods = await response.json();
+
+                    if (!Array.isArray(paymentMethods)) {
+                        throw new Error('Respuesta inesperada del servidor: los métodos de pago no son un arreglo');
+                    }
+
+                    paymentMethodSelect.innerHTML = '<option value="">Seleccione un método</option>';
+
+                    paymentMethods.forEach(method => {
+                        const option = document.createElement('option');
+                        option.value = method.id;
+                        option.textContent = method.method_name;
+                        paymentMethodSelect.appendChild(option);
+                    });
+
+                } catch (error) {
+                    console.error('Error al cargar los métodos de pago:', error);
+                    alert(`Error al cargar los métodos de pago: ${error.message}`);
+                }
+            }
+
+            async function fetchServices() {
+                try {
+                    const response = await fetch('http://localhost:3000/api/service', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': authToken,
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Error ${response.status}: ${response.statusText}`);
+                    }
+
+                    const services = await response.json();
+
+                    if (!Array.isArray(services)) {
+                        throw new Error('Respuesta inesperada del servidor: los tipos de servicio no son un arreglo');
+                    }
+
+                    return services;
+
+                } catch (error) {
+                    console.error('Error al cargar los tipos de servicio:', error);
+                    alert(`Error al cargar los tipos de servicio: ${error.message}`);
+                    return []
+                }
+            }
+
+            loadPaymentMethods();
+            fetchServices();
+
+            addDetailButton.addEventListener('click',async () => {
+                const serviceMethods = await fetchServices();
+                const detailDiv = document.createElement('div');
+                detailDiv.innerHTML = `
+                    <select class="service-method" required>
+                        <option value = ""> Seleccione el tipo de servicio </option>
+                        ${serviceMethods.map( service => `<option value = "${service.id}"> ${service.service_name} </option>`).join('')}
+                    </select>
+                    <input type="text" class="quantity" placeholder="Cantidad" required>
+                    <input type="text" class="clothes" placeholder="Prenda" required>
+                    <button type="button" class="remove-detail">Eliminar</button>
+                `;
+                detailsList.appendChild(detailDiv);
+
+                detailDiv.querySelector('.remove-detail').addEventListener('click', () => {
+                    detailsList.removeChild(detailDiv);
+                });
+            });
+
+            document.getElementById('order-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const paymentMethodId = document.getElementById('payment-method').value;
+                const details = Array.from(detailsList.children).map(detailDiv => ({
+                    service_order_id: parseInt(detailDiv.querySelector('.service-method').value),
+                    quantity: parseInt(detailDiv.querySelector('.quantity').value),
+                    clothes: detailDiv.querySelector('.clothes').value,
+                }));
+
+                try {
+                    socket.emit('create-order', {
+                        payment_method_id: parseInt(paymentMethodId),
+                        details,
+                    });
+
+                    document.getElementById('message').style.display = 'block';
+ 
+                    setTimeout(() => {
+                        window.location.href = 'dashboard.html';
+                    }, 2000);
+                } catch (error) {
+                    console.error('Error al conectar con el servidor:', error);
+                    alert('Error al crear la orden');
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>

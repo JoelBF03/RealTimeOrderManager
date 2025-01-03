@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f9;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .header h1 {
+      font-size: 32px;
+      color: #333;
+    }
+
+    .info-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .info-box {
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+
+    .info-box h3 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+
+    .info-box p {
+      font-size: 18px;
+      color: #555;
+    }
+
+    #ordersChart {
+      width: 100%;
+      height: 400px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .button-container {
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 id="welcome-message">Bienvenido</h1>
+    </div>
+
+    <div class="info-container">
+      <div class="info-box">
+        <h3>Gasto Total</h3>
+        <p id="total-spent">$0</p>
+      </div>
+
+      <div class="info-box">
+        <h3>Servicio Más Usado</h3>
+        <p id="most-used-service">Ninguno</p>
+      </div>
+    </div>
+
+    <div>
+      <canvas id="ordersChart"></canvas>
+    </div>
+  </div>
+
+  <div class="button-container">
+    <a href="create-order.html" class="btn" target="_blank">Crear Nueva Orden</a>
+  </div>
+</div>
+
+  <script>
+
+    const authToken = localStorage.getItem('authToken');
+
+    if (!authToken) {
+      alert('Debe iniciar sesión primero.');
+      window.location.href = 'index.html';
+    } else {
+      const socket = io('http://localhost:3000', {
+        auth: { token: authToken },
+      });
+
+      const ctx = document.getElementById('ordersChart').getContext('2d');
+      const chartData = {
+        labels: [],
+        datasets: [{
+          label: 'Cantidad de Órdenes',
+          data: [],
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          borderColor: 'rgba(75, 192, 192, 1)',
+          borderWidth: 1,
+        }]
+      };
+
+      const ordersChart = new Chart(ctx, {
+        type: 'bar',
+        data: chartData,
+        options: {
+          scales: {
+            y: { beginAtZero: true },
+          },
+        },
+      });
+
+      socket.on('orders-updated', (orders) => {
+        const clientName = orders[0]?.client_name || 'Desconocido';
+        document.getElementById('welcome-message').textContent = `Bienvenido ${clientName}`;
+
+        const paymentMethodCounts = {};
+        let totalSpent = 0;
+        const serviceUsage = {};
+
+        orders.forEach(order => {
+          totalSpent += parseFloat(order.total_price) || 0;
+
+          const method = order.payment_method || 'Desconocido';
+          paymentMethodCounts[method] = (paymentMethodCounts[method] || 0) + 1;
+
+          order.details.forEach(detail => {
+            const service = detail.service_name || 'Otro';
+            serviceUsage[service] = (serviceUsage[service] || 0) + 1;
+          });
+        });
+
+        const mostUsedService = Object.keys(serviceUsage).reduce((a, b) => serviceUsage[a] > serviceUsage[b] ? a : b, 'Ninguno');
+
+        document.getElementById('total-spent').textContent = `$${totalSpent.toFixed(2)}`;
+        document.getElementById('most-used-service').textContent = mostUsedService;
+
+        chartData.labels = Object.keys(paymentMethodCounts);
+        chartData.datasets[0].data = Object.values(paymentMethodCounts);
+        ordersChart.update();
+      });
+    }
+  </script>
+</body>
+</html>

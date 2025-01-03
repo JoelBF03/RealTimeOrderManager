@@ -1,0 +1,88 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type PaymentMethod {
+  id: Int!
+  method_name: String!
+}
+
+type Client {
+  first_name: String!
+  last_name: String!
+  email: String!
+  phone: String!
+  address: String!
+}
+
+type ServiceOrder {
+  id: Int!
+  service_name: String!
+  price: Float!
+}
+
+type DetailOrder {
+  id: Int!
+  order_id: Int!
+  service_order_id: Int!
+  clothes: String!
+  quantity: Int!
+  subtotal_price: Float!
+}
+
+type Order {
+  id: Int!
+  client_id: Int!
+  payment_method_id: Int!
+  total_price: Float!
+  details: [DetailOrder!]!
+}
+
+type Query {
+  paymentMethods: [PaymentMethod!]!
+  paymentMethod(id: String!): PaymentMethod!
+  profile: Client!
+  services: [ServiceOrder!]!
+  service(id: String!): ServiceOrder!
+  orders: [Order!]!
+  order(id: String!): Order!
+  detailOrders: [DetailOrder!]!
+  detailOrder(id: String!): DetailOrder!
+  generateClientReport: String!
+}
+
+type Mutation {
+  createPaymentMethod(method_name: String!): PaymentMethod!
+  updatePaymentMethod(id: String!, method_name: String!): PaymentMethod!
+  deletePaymentMethod(id: String!): String!
+  createService(service_name: String!, price: Float!): ServiceOrder!
+  updateService(id: String!, service_name: String, price: Float): ServiceOrder!
+  deleteService(id: String!): String!
+  createOrder(input: CreateOrderInput!): Order!
+  updateOrder(id: String!, input: UpdateOrderInput!): Order!
+  deleteOrder(id: String!): String!
+  updateDetail(id: String!, input: UpdateDetailInput!): DetailOrder!
+  deleteDetail(id: String!): String!
+}
+
+input CreateOrderInput {
+  payment_method_id: Int!
+  details: [CreateDetailInput!]!
+}
+
+input CreateDetailInput {
+  service_order_id: Int!
+  clothes: String!
+  quantity: Int!
+}
+
+input UpdateOrderInput {
+  payment_method_id: Int
+}
+
+input UpdateDetailInput {
+  service_order_id: Int
+  clothes: String
+  quantity: Int
+  subtotal_price: Float
+}
